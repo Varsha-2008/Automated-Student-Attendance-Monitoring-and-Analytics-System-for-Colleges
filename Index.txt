@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Attendance Monitoring & Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">§</span>
+      <div class="brand-text">
+        <span class="brand-name">Ledger</span>
+        <span class="brand-sub">Attendance Registry</span>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item is-active" data-view="dashboard">
+        <span class="nav-num">01</span> Dashboard
+      </button>
+      <button class="nav-item" data-view="register">
+        <span class="nav-num">02</span> Take Register
+      </button>
+      <button class="nav-item" data-view="records">
+        <span class="nav-num">03</span> Attendance Log
+      </button>
+      <button class="nav-item" data-view="analytics">
+        <span class="nav-num">04</span> Analytics
+      </button>
+      <button class="nav-item" data-view="students">
+        <span class="nav-num">05</span> Students
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <label class="field-label" for="classSelect">Class / Section</label>
+      <select id="classSelect" class="select"></select>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <section class="view is-active" id="view-dashboard">
+      <header class="view-head">
+        <div>
+          <p class="eyebrow">Overview</p>
+          <h1>Today's Standing</h1>
+        </div>
+        <div class="today-stamp" id="todayStamp"></div>
+      </header>
+
+      <div class="stat-row" id="statCards"></div>
+
+      <div class="panel-grid">
+        <div class="panel">
+          <h2>Attendance, last 7 sessions</h2>
+          <div class="bars" id="trendBars"></div>
+        </div>
+        <div class="panel">
+          <h2>Needs attention</h2>
+          <p class="panel-sub">Students below 75% attendance</p>
+          <ul class="watchlist" id="watchList"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAKE REGISTER -->
+    <section class="view" id="view-register">
+      <header class="view-head">
+        <div>
+          <p class="eyebrow">Roll Call</p>
+          <h1>Take Register</h1>
+        </div>
+        <input type="date" id="registerDate" class="date-input">
+      </header>
+
+      <div class="register-toolbar">
+        <input type="text" id="registerSearch" class="text-input" placeholder="Search by name or roll no.">
+        <div class="bulk-actions">
+          <button class="chip chip-present" data-bulk="P">Mark all Present</button>
+          <button class="chip chip-absent" data-bulk="A">Mark all Absent</button>
+        </div>
+      </div>
+
+      <div class="ledger" id="registerLedger"></div>
+
+      <div class="register-submit">
+        <span id="registerSummary" class="mono-tag"></span>
+        <button class="btn-primary" id="saveRegisterBtn">Save Register</button>
+      </div>
+    </section>
+
+    <!-- ATTENDANCE LOG -->
+    <section class="view" id="view-records">
+      <header class="view-head">
+        <div>
+          <p class="eyebrow">History</p>
+          <h1>Attendance Log</h1>
+        </div>
+      </header>
+
+      <div class="register-toolbar">
+        <select id="logDateFilter" class="select"></select>
+        <span class="mono-tag" id="logCount"></span>
+      </div>
+
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>Date</th><th>Roll No.</th><th>Name</th><th>Status</th><th>Marked</th>
+          </tr>
+        </thead>
+        <tbody id="logTableBody"></tbody>
+      </table>
+    </section>
+
+    <!-- ANALYTICS -->
+    <section class="view" id="view-analytics">
+      <header class="view-head">
+        <div>
+          <p class="eyebrow">Insights</p>
+          <h1>Analytics</h1>
+        </div>
+      </header>
+
+      <div class="panel-grid">
+        <div class="panel panel-wide">
+          <h2>Attendance % by student</h2>
+          <div class="hbars" id="studentBars"></div>
+        </div>
+        <div class="panel">
+          <h2>Class summary</h2>
+          <div class="donut-wrap">
+            <svg viewBox="0 0 120 120" class="donut" id="donutChart"></svg>
+            <div class="donut-legend" id="donutLegend"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STUDENTS -->
+    <section class="view" id="view-students">
+      <header class="view-head">
+        <div>
+          <p class="eyebrow">Roster</p>
+          <h1>Students</h1>
+        </div>
+      </header>
+
+      <form class="add-student-form" id="addStudentForm">
+        <input required type="text" id="newRoll" class="text-input" placeholder="Roll no.">
+        <input required type="text" id="newName" class="text-input" placeholder="Full name">
+        <button type="submit" class="btn-primary">Add student</button>
+      </form>
+
+      <table class="log-table">
+        <thead>
+          <tr><th>Roll No.</th><th>Name</th><th>Overall %</th><th>Present</th><th>Absent</th><th></th></tr>
+        </thead>
+        <tbody id="studentTableBody"></tbody>
+      </table>
+    </section>
+
+  </main>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

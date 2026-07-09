@@ -1,0 +1,393 @@
+/* ==========================================================
+   Ledger — Attendance Monitoring & Analytics
+   All data lives in memory for this session (no backend).
+   ========================================================== */
+
+(function () {
+  "use strict";
+
+  /* ---------------- State ---------------- */
+
+  const CLASSES = ["CS-301 · Data Structures", "CS-402 · Operating Systems", "EC-210 · Digital Circuits"];
+
+  let students = [
+    { id: 1, roll: "21CS001", name: "Aditi Rao" },
+    { id: 2, roll: "21CS002", name: "Rohan Mehta" },
+    { id: 3, roll: "21CS003", name: "Sana Iqbal" },
+    { id: 4, roll: "21CS004", name: "Devansh Kulkarni" },
+    { id: 5, roll: "21CS005", name: "Priya Nair" },
+    { id: 6, roll: "21CS006", name: "Kabir Singh" },
+    { id: 7, roll: "21CS007", name: "Meera Joseph" },
+    { id: 8, roll: "21CS008", name: "Yusuf Ansari" },
+  ];
+
+  // records: { date: "YYYY-MM-DD", studentId, status: "P"|"A"|"L" }
+  let records = [];
+
+  function seedHistory() {
+    const today = new Date();
+    for (let d = 13; d >= 1; d--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - d);
+      if (date.getDay() === 0 || date.getDay() === 6) continue; // skip weekends
+      const iso = toISO(date);
+      students.forEach((s) => {
+        const roll = Math.random();
+        let status = "P";
+        if (roll < 0.1) status = "L";
+        else if (roll < 0.22) status = "A";
+        // a couple of students are deliberately low-attendance
+        if ((s.id === 4 || s.id === 8) && Math.random() < 0.5) status = "A";
+        records.push({ date: iso, studentId: s.id, status });
+      });
+    }
+  }
+
+  function toISO(date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  let nextStudentId = students.length + 1;
+  let pendingRegister = {}; // studentId -> status, for the register currently being filled
+
+  /* ---------------- Init ---------------- */
+
+  document.addEventListener("DOMContentLoaded", () => {
+    seedHistory();
+    populateClassSelect();
+    setupNav();
+    setupRegisterDate();
+    setupRegisterHandlers();
+    setupStudentForm();
+    renderAll();
+  });
+
+  function populateClassSelect() {
+    const sel = document.getElementById("classSelect");
+    CLASSES.forEach((c) => {
+      const opt = document.createElement("option");
+      opt.textContent = c;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener("change", renderAll);
+  }
+
+  function setupNav() {
+    const items = document.querySelectorAll(".nav-item");
+    items.forEach((item) => {
+      item.addEventListener("click", () => {
+        items.forEach((i) => i.classList.remove("is-active"));
+        item.classList.add("is-active");
+        document.querySelectorAll(".view").forEach((v) => v.classList.remove("is-active"));
+        document.getElementById("view-" + item.dataset.view).classList.add("is-active");
+        renderAll();
+      });
+    });
+  }
+
+  function setupRegisterDate() {
+    const input = document.getElementById("registerDate");
+    input.value = toISO(new Date());
+    input.addEventListener("change", () => {
+      pendingRegister = {};
+      renderRegister();
+    });
+  }
+
+  function setupRegisterHandlers() {
+    document.getElementById("registerSearch").addEventListener("input", renderRegister);
+
+    document.querySelectorAll("[data-bulk]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const status = btn.dataset.bulk;
+        students.forEach((s) => (pendingRegister[s.id] = status));
+        renderRegister();
+      });
+    });
+
+    document.getElementById("saveRegisterBtn").addEventListener("click", () => {
+      const date = document.getElementById("registerDate").value;
+      if (!date) return;
+      // remove any existing records for that date, then re-add
+      records = records.filter((r) => r.date !== date);
+      students.forEach((s) => {
+        const status = pendingRegister[s.id] || "A";
+        records.push({ date, studentId: s.id, status });
+      });
+      flashButton(document.getElementById("saveRegisterBtn"), "Saved ✓");
+      renderAll();
+    });
+  }
+
+  function flashButton(btn, text) {
+    const original = btn.textContent;
+    btn.textContent = text;
+    setTimeout(() => (btn.textContent = original), 1400);
+  }
+
+  function setupStudentForm() {
+    document.getElementById("addStudentForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const roll = document.getElementById("newRoll").value.trim();
+      const name = document.getElementById("newName").value.trim();
+      if (!roll || !name) return;
+      students.push({ id: nextStudentId++, roll, name });
+      e.target.reset();
+      renderAll();
+    });
+  }
+
+  function removeStudent(id) {
+    students = students.filter((s) => s.id !== id);
+    records = records.filter((r) => r.studentId !== id);
+    renderAll();
+  }
+
+  /* ---------------- Derived data helpers ---------------- */
+
+  function studentStats(studentId) {
+    const recs = records.filter((r) => r.studentId === studentId);
+    const present = recs.filter((r) => r.status === "P").length;
+    const late = recs.filter((r) => r.status === "L").length;
+    const absent = recs.filter((r) => r.status === "A").length;
+    const total = recs.length;
+    const pct = total ? Math.round(((present + late) / total) * 100) : 100;
+    return { present, late, absent, total, pct };
+  }
+
+  function allDates() {
+    return [...new Set(records.map((r) => r.date))].sort();
+  }
+
+  /* ---------------- Render orchestration ---------------- */
+
+  function renderAll() {
+    renderDashboard();
+    renderRegister();
+    renderLog();
+    renderAnalytics();
+    renderStudents();
+  }
+
+  /* ---------------- Dashboard ---------------- */
+
+  function renderDashboard() {
+    document.getElementById("todayStamp").textContent =
+      new Date().toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+    const dates = allDates();
+    const lastDate = dates[dates.length - 1];
+    const todays = records.filter((r) => r.date === lastDate);
+    const present = todays.filter((r) => r.status === "P").length;
+    const late = todays.filter((r) => r.status === "L").length;
+    const absent = todays.filter((r) => r.status === "A").length;
+    const total = students.length;
+    const overallPct = total ? Math.round(((present + late) / (todays.length || total)) * 100) : 0;
+
+    const cards = [
+      { label: "Total Students", value: total, accent: "var(--navy)" },
+      { label: "Present (last session)", value: present, accent: "var(--teal)" },
+      { label: "Absent (last session)", value: absent, accent: "var(--brick)" },
+      { label: "Attendance Rate", value: overallPct + "%", accent: "var(--gold)" },
+    ];
+
+    document.getElementById("statCards").innerHTML = cards
+      .map(
+        (c) => `
+      <div class="stat-card" style="--accent:${c.accent}">
+        <div class="stat-num">${c.value}</div>
+        <div class="stat-label">${c.label}</div>
+      </div>`
+      )
+      .join("");
+
+    // trend bars: last 7 session dates
+    const last7 = dates.slice(-7);
+    const barsHtml = last7
+      .map((date) => {
+        const recs = records.filter((r) => r.date === date);
+        const p = recs.filter((r) => r.status === "P" || r.status === "L").length;
+        const pct = recs.length ? Math.round((p / recs.length) * 100) : 0;
+        const cls = pct < 60 ? "low" : pct < 80 ? "mid" : "";
+        const day = new Date(date).toLocaleDateString(undefined, { day: "2-digit", month: "short" });
+        return `
+        <div class="bar-col">
+          <span class="bar-val">${pct}%</span>
+          <div class="bar-fill ${cls}" style="height:${Math.max(pct, 4)}%"></div>
+          <span class="bar-day">${day}</span>
+        </div>`;
+      })
+      .join("");
+    document.getElementById("trendBars").innerHTML = barsHtml || `<p class="panel-sub">No sessions recorded yet.</p>`;
+
+    // watchlist: students under 75%
+    const atRisk = students
+      .map((s) => ({ ...s, ...studentStats(s.id) }))
+      .filter((s) => s.total > 0 && s.pct < 75)
+      .sort((a, b) => a.pct - b.pct);
+
+    document.getElementById("watchList").innerHTML = atRisk.length
+      ? atRisk
+          .map(
+            (s) => `<li><span>${s.name} <span class="mono-tag">${s.roll}</span></span><span class="wl-pct">${s.pct}%</span></li>`
+          )
+          .join("")
+      : `<li class="empty-note">Everyone is above the 75% threshold.</li>`;
+  }
+
+  /* ---------------- Take Register ---------------- */
+
+  function renderRegister() {
+    const search = document.getElementById("registerSearch").value.toLowerCase();
+    const container = document.getElementById("registerLedger");
+    const date = document.getElementById("registerDate").value;
+
+    // preload pendingRegister from existing saved records for this date, if untouched
+    if (Object.keys(pendingRegister).length === 0) {
+      const existing = records.filter((r) => r.date === date);
+      existing.forEach((r) => (pendingRegister[r.studentId] = r.status));
+    }
+
+    const filtered = students.filter(
+      (s) => s.name.toLowerCase().includes(search) || s.roll.toLowerCase().includes(search)
+    );
+
+    container.innerHTML = filtered
+      .map((s) => {
+        const status = pendingRegister[s.id];
+        return `
+        <div class="ledger-row">
+          <span class="ledger-roll">${s.roll}</span>
+          <span class="ledger-name">${s.name}</span>
+          <div class="stamp-group">
+            <button class="stamp ${status === "P" ? "selected-P" : ""}" data-id="${s.id}" data-status="P" title="Present">P</button>
+            <button class="stamp ${status === "L" ? "selected-L" : ""}" data-id="${s.id}" data-status="L" title="Late">L</button>
+            <button class="stamp ${status === "A" ? "selected-A" : ""}" data-id="${s.id}" data-status="A" title="Absent">A</button>
+          </div>
+        </div>`;
+      })
+      .join("");
+
+    container.querySelectorAll(".stamp").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        pendingRegister[btn.dataset.id] = btn.dataset.status;
+        renderRegister();
+      });
+    });
+
+    const marked = Object.keys(pendingRegister).length;
+    document.getElementById("registerSummary").textContent = `${marked} of ${students.length} marked`;
+  }
+
+  /* ---------------- Attendance Log ---------------- */
+
+  function renderLog() {
+    const dateSel = document.getElementById("logDateFilter");
+    const dates = allDates().slice().reverse();
+    const currentVal = dateSel.value;
+    dateSel.innerHTML = `<option value="">All dates</option>` + dates.map((d) => `<option value="${d}">${d}</option>`).join("");
+    if (dates.includes(currentVal)) dateSel.value = currentVal;
+    dateSel.onchange = renderLogRows;
+
+    renderLogRows();
+  }
+
+  function renderLogRows() {
+    const filterDate = document.getElementById("logDateFilter").value;
+    const rows = records
+      .filter((r) => !filterDate || r.date === filterDate)
+      .slice()
+      .sort((a, b) => (a.date < b.date ? 1 : -1))
+      .slice(0, 300);
+
+    const studentMap = Object.fromEntries(students.map((s) => [s.id, s]));
+    const statusLabel = { P: "Present", A: "Absent", L: "Late" };
+
+    document.getElementById("logTableBody").innerHTML = rows
+      .map((r) => {
+        const s = studentMap[r.studentId];
+        if (!s) return "";
+        return `
+        <tr>
+          <td class="mono">${r.date}</td>
+          <td class="mono">${s.roll}</td>
+          <td>${s.name}</td>
+          <td><span class="status-pill ${r.status}">${statusLabel[r.status]}</span></td>
+          <td class="mono">Register</td>
+        </tr>`;
+      })
+      .join("");
+
+    document.getElementById("logCount").textContent = `${rows.length} entries`;
+  }
+
+  /* ---------------- Analytics ---------------- */
+
+  function renderAnalytics() {
+    const stats = students.map((s) => ({ ...s, ...studentStats(s.id) })).sort((a, b) => b.pct - a.pct);
+
+    document.getElementById("studentBars").innerHTML = stats
+      .map((s) => {
+        const cls = s.pct < 60 ? "low" : s.pct < 80 ? "mid" : "";
+        return `
+        <div class="hbar-row">
+          <span class="hbar-name">${s.name}</span>
+          <div class="hbar-track"><div class="hbar-fill ${cls}" style="width:${s.pct}%"></div></div>
+          <span class="hbar-pct">${s.pct}%</span>
+        </div>`;
+      })
+      .join("");
+
+    // donut: overall P / A / L split across all records
+    const totals = { P: 0, A: 0, L: 0 };
+    records.forEach((r) => totals[r.status]++);
+    const sum = totals.P + totals.A + totals.L || 1;
+
+    const colors = { P: "#2F6F62", A: "#A63D40", L: "#8A6D3B" };
+    const labels = { P: "Present", A: "Absent", L: "Late" };
+    let offset = 0;
+    const circumference = 2 * Math.PI * 50;
+    const segments = Object.keys(totals)
+      .map((key) => {
+        const frac = totals[key] / sum;
+        const dash = frac * circumference;
+        const circle = `<circle cx="60" cy="60" r="50" fill="none" stroke="${colors[key]}" stroke-width="16"
+          stroke-dasharray="${dash} ${circumference - dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 60 60)"/>`;
+        offset += dash;
+        return circle;
+      })
+      .join("");
+
+    document.getElementById("donutChart").innerHTML = segments;
+    document.getElementById("donutLegend").innerHTML = Object.keys(totals)
+      .map(
+        (key) =>
+          `<div class="legend-item"><span class="legend-dot" style="background:${colors[key]}"></span>${labels[key]} — ${Math.round((totals[key] / sum) * 100)}%</div>`
+      )
+      .join("");
+  }
+
+  /* ---------------- Students ---------------- */
+
+  function renderStudents() {
+    const stats = students.map((s) => ({ ...s, ...studentStats(s.id) }));
+
+    document.getElementById("studentTableBody").innerHTML = stats
+      .map(
+        (s) => `
+      <tr>
+        <td class="mono">${s.roll}</td>
+        <td>${s.name}</td>
+        <td class="mono">${s.pct}%</td>
+        <td class="mono">${s.present + s.late}</td>
+        <td class="mono">${s.absent}</td>
+        <td><button class="icon-btn" data-remove="${s.id}">Remove</button></td>
+      </tr>`
+      )
+      .join("");
+
+    document.querySelectorAll("[data-remove]").forEach((btn) => {
+      btn.addEventListener("click", () => removeStudent(Number(btn.dataset.remove)));
+    });
+  }
+})();
